@@ -4,7 +4,7 @@
 
 #include "EmptyPort.hpp"
 #include "TestServer.hpp"
-#include "catch.hpp"
+#include <catch2/catch_all.hpp>
 
 #include "bredis/Connection.hpp"
 #include "bredis/Extract.hpp"
@@ -41,10 +41,10 @@ TEST_CASE("subscription", "[connection]") {
     auto server = ts::make_server({"redis-server", "--port", port_str});
     ep::wait_port<ep::Kind::TCP>(port);
     // uint16_t port = 6379;
-    asio::io_service io_service;
+    asio::io_context io_service;
 
     asio::ip::tcp::endpoint end_point(
-        asio::ip::address::from_string("127.0.0.1"), port);
+        asio::ip::make_address("127.0.0.1"), port);
     socket_t socket(io_service, end_point.protocol());
     socket.connect(end_point);
 
@@ -165,4 +165,4 @@ TEST_CASE("subscription", "[connection]") {
     REQUIRE(messages[0] == "some-channel1:message-a1");
     REQUIRE(messages[1] == "some-channel1:message-a2");
     REQUIRE(messages[2] == "some-channel2:last");
-};
+}

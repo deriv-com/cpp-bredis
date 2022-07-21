@@ -4,7 +4,7 @@
 
 #include "EmptyPort.hpp"
 #include "TestServer.hpp"
-#include "catch.hpp"
+#include <catch2/catch_all.hpp>
 
 #include "bredis/Connection.hpp"
 #include "bredis/Extract.hpp"
@@ -15,6 +15,7 @@ namespace r = bredis;
 namespace asio = boost::asio;
 namespace ep = empty_port;
 namespace ts = test_server;
+namespace sys = boost::system;
 
 TEST_CASE("ping", "[connection]") {
     using socket_t = asio::ip::tcp::socket;
@@ -41,10 +42,10 @@ TEST_CASE("ping", "[connection]") {
     auto port_str = boost::lexical_cast<std::string>(port);
     auto server = ts::make_server({"redis-server", "--port", port_str});
     ep::wait_port<ep::Kind::TCP>(port);
-    asio::io_service io_service;
+    asio::io_context io_service;
 
     asio::ip::tcp::endpoint end_point(
-        asio::ip::address::from_string("127.0.0.1"), port);
+        asio::ip::make_address("127.0.0.1"), port);
     socket_t socket(io_service, end_point.protocol());
     socket.connect(end_point);
 
@@ -68,29 +69,35 @@ TEST_CASE("ping", "[connection]") {
             auto extract = boost::apply_visitor(Extractor(), r.result);
             REQUIRE(boost::get<r::extracts::int_t>(extract) == 0);
             REQUIRE(order == 0);
+            REQUIRE(!error_code);
         },
         [&](const boost::system::error_code &error_code, ParseResult &&r) {
             auto extract = boost::apply_visitor(Extractor(), r.result);
             REQUIRE(boost::get<r::extracts::nil_t>(&extract));
             REQUIRE(order == 1);
+            REQUIRE(!error_code);
         },
         [&](const boost::system::error_code &error_code, ParseResult &&r) {
             auto extract = boost::apply_visitor(Extractor(), r.result);
             REQUIRE(boost::get<r::extracts::string_t>(extract).str == "OK");
             REQUIRE(order == 2);
+            REQUIRE(!error_code);
         },
         [&](const boost::system::error_code &error_code, ParseResult &&r) {
             auto extract = boost::apply_visitor(Extractor(), r.result);
             REQUIRE(boost::get<r::extracts::string_t>(extract).str == "value");
             REQUIRE(order == 3);
+            REQUIRE(!error_code);
         },
         [&](const boost::system::error_code &error_code, ParseResult &&r) {
             auto extract = boost::apply_visitor(Extractor(), r.result);
             REQUIRE(boost::get<r::extracts::error_t>(extract).str ==
                     "ERR wrong number of arguments for 'llen' command");
             REQUIRE(order == 4);
+            REQUIRE(!error_code);
         },
         [&](const boost::system::error_code &error_code, ParseResult &&r) {
+            REQUIRE(!error_code);
             REQUIRE(order == 5);
             auto extract = boost::apply_visitor(Extractor(), r.result);
             auto &arr = boost::get<r::extracts::array_holder_t>(extract);
@@ -114,15 +121,16 @@ TEST_CASE("ping", "[connection]") {
             c.async_read(rx_buff, generic_callback);
         };
 
-    c.async_write(tx_buff, r::command_wrapper_t(cmds_container),
-                  [&](const auto &error_code, auto bytes_transferred) {
-                      REQUIRE(!error_code);
-                      tx_buff.consume(bytes_transferred);
-                      c.async_read(rx_buff, generic_callback);
-                  });
+    c.async_write(
+        tx_buff, r::command_wrapper_t(cmds_container),
+        [&](const sys::error_code &ec, std::size_t bytes_transferred) {
+            REQUIRE(!ec);
+            tx_buff.consume(bytes_transferred);
+            c.async_read(rx_buff, generic_callback);
+        });
 
     while (completion_future.wait_for(sleep_delay) !=
            std::future_status::ready) {
         io_service.run_one();
     }
-};
+}

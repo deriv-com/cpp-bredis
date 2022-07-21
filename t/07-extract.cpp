@@ -3,12 +3,13 @@
 
 #include "bredis/Extract.hpp"
 
-#include "catch.hpp"
+#define CATCH_CONFIG_MAIN
+#include <catch2/catch_all.hpp>
 
 namespace r = bredis;
 namespace asio = boost::asio;
 
-using Buffer = asio::const_buffers_1;
+using Buffer = asio::const_buffer;
 using Iterator = boost::asio::buffers_iterator<Buffer, char>;
 
 TEST_CASE("string extraction", "[protocol]") {

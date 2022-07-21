@@ -8,12 +8,13 @@
 #include "bredis/Connection.hpp"
 #include "bredis/Extract.hpp"
 
-#include "catch.hpp"
+#include <catch2/catch_all.hpp>
 
 namespace r = bredis;
 namespace asio = boost::asio;
 namespace ep = empty_port;
 namespace ts = test_server;
+namespace sys = boost::system;
 
 TEST_CASE("ping", "[connection]") {
     using socket_t = asio::ip::tcp::socket;
@@ -34,10 +35,10 @@ TEST_CASE("ping", "[connection]") {
     auto port_str = boost::lexical_cast<std::string>(port);
     auto server = ts::make_server({"redis-server", "--port", port_str});
     ep::wait_port<ep::Kind::TCP>(port);
-    asio::io_service io_service;
+    asio::io_context io_service;
 
     asio::ip::tcp::endpoint end_point(
-        asio::ip::address::from_string("127.0.0.1"), port);
+        asio::ip::make_address("127.0.0.1"), port);
     socket_t socket(io_service, end_point.protocol());
     socket.connect(end_point);
 
@@ -48,10 +49,11 @@ TEST_CASE("ping", "[connection]") {
     Buffer tx_buff, rx_buff;
 
     c.async_write(
-        tx_buff, "ping", [&](const auto &error_code, auto bytes_transferred) {
+        tx_buff, "ping",
+        [&](const sys::error_code &error_code, std::size_t bytes_transferred) {
             REQUIRE(!error_code);
             tx_buff.consume(bytes_transferred);
-            c.async_read(rx_buff, [&](const auto &error_code, auto &&r) {
+            c.async_read(rx_buff, [&](const sys::error_code &, result_t &&r) {
                 completion_promise.set_value(r);
                 rx_buff.consume(r.consumed);
             });
@@ -67,4 +69,4 @@ TEST_CASE("ping", "[connection]") {
         boost::apply_visitor(r::extractor<Iterator>(), parse_result.result);
     auto &reply_str = boost::get<r::extracts::string_t>(extract);
     REQUIRE(reply_str.str == "PONG");
-};
+}

@@ -1,6 +1,5 @@
 #include <boost/asio.hpp>
 #include <future>
-#include <string>
 #include <vector>
 
 #include "EmptyPort.hpp"
@@ -16,7 +15,7 @@ namespace ep = empty_port;
 namespace ts = test_server;
 namespace sys = boost::system;
 
-TEST_CASE("ping", "[connection]") {
+TEST_CASE("ping/drop-policy", "[connection]") {
     using socket_t = asio::ip::tcp::socket;
 #ifdef BREDIS_DEBUG
     using next_layer_t = r::test::SocketWithLogging<socket_t>;
@@ -27,7 +26,7 @@ TEST_CASE("ping", "[connection]") {
     using Iterator =
         boost::asio::buffers_iterator<typename Buffer::const_buffers_type,
                                       char>;
-    using Policy = r::parsing_policy::keep_result;
+    using Policy = r::parsing_policy::drop_result;
     using ParseResult = r::positive_parse_result_t<Iterator, Policy>;
 
     using result_t = void;
@@ -41,7 +40,10 @@ TEST_CASE("ping", "[connection]") {
 
     size_t count = 1000;
     r::single_command_t ping_cmd("ping");
-    r::command_container_t ping_cmds_container(count, ping_cmd);
+    r::command_container_t ping_cmds_container;
+    for (size_t i = 0; i < count; ++i) {
+        ping_cmds_container.push_back(ping_cmd);
+    }
     r::command_wrapper_t cmd(ping_cmds_container);
 
     uint16_t port = ep::get_random<ep::Kind::TCP>();
@@ -60,34 +62,29 @@ TEST_CASE("ping", "[connection]") {
     std::future<result_t> completion_future = completion_promise.get_future();
 
     Buffer tx_buff, rx_buff;
-    read_callback_t read_callback = [&](const sys::error_code &error_code,
+    read_callback_t read_callback = [&](const sys::error_code &ec,
                                         ParseResult &&r) {
-        if (error_code) {
+        if (ec) {
             BREDIS_LOG_DEBUG("error: " << error_code.message());
-            REQUIRE(!error_code);
+            REQUIRE(!ec);
         }
-        REQUIRE(!error_code);
-        auto &replies =
-            boost::get<r::markers::array_holder_t<Iterator>>(r.result);
-        BREDIS_LOG_DEBUG("callback, size: " << replies.elements.size());
-        REQUIRE(replies.elements.size() == count);
+        REQUIRE(!ec);
         completion_promise.set_value();
         rx_buff.consume(r.consumed);
     };
 
-    write_callback_t write_callback = [&](const sys::error_code &error_code,
+    write_callback_t write_callback = [&](const sys::error_code &ec,
                                           std::size_t bytes_transferred) {
-        (void)bytes_transferred;
         BREDIS_LOG_DEBUG("write_callback");
-        if (error_code) {
+        if (ec) {
             BREDIS_LOG_DEBUG("error: " << error_code.message());
-            REQUIRE(!error_code);
+            REQUIRE(!ec);
         }
-        REQUIRE(!error_code);
+        REQUIRE(!ec);
         tx_buff.consume(bytes_transferred);
     };
 
-    c.async_read(rx_buff, read_callback, count);
+    c.async_read(rx_buff, read_callback, count, Policy{});
     c.async_write(tx_buff, cmd, write_callback);
 
     while (completion_future.wait_for(sleep_delay) !=

@@ -1,11 +1,12 @@
 #include <boost/asio.hpp>
 #include <future>
-#include <string>
 #include <vector>
+#include <string>
 
 #include "EmptyPort.hpp"
 #include "SocketWithLogging.hpp"
 #include "TestServer.hpp"
+#define CATCH_CONFIG_MAIN
 #include <catch2/catch_all.hpp>
 
 #include "bredis/Connection.hpp"
@@ -23,7 +24,11 @@ TEST_CASE("ping", "[connection]") {
 #else
     using next_layer_t = socket_t;
 #endif
-    using Buffer = boost::asio::streambuf;
+    using Buffer = boost::asio::dynamic_string_buffer<
+        std::string::value_type,
+        std::string::traits_type,
+        std::string::allocator_type
+    >;
     using Iterator =
         boost::asio::buffers_iterator<typename Buffer::const_buffers_type,
                                       char>;
@@ -59,31 +64,34 @@ TEST_CASE("ping", "[connection]") {
     std::promise<result_t> completion_promise;
     std::future<result_t> completion_future = completion_promise.get_future();
 
-    Buffer tx_buff, rx_buff;
-    read_callback_t read_callback = [&](const sys::error_code &error_code,
-                                        ParseResult &&r) {
-        if (error_code) {
-            BREDIS_LOG_DEBUG("error: " << error_code.message());
-            REQUIRE(!error_code);
-        }
-        REQUIRE(!error_code);
-        auto &replies =
-            boost::get<r::markers::array_holder_t<Iterator>>(r.result);
-        BREDIS_LOG_DEBUG("callback, size: " << replies.elements.size());
-        REQUIRE(replies.elements.size() == count);
-        completion_promise.set_value();
-        rx_buff.consume(r.consumed);
-    };
+    std::string rx_backend;
+    std::string tx_backend;
+    auto rx_buff = Buffer(rx_backend);
+    auto tx_buff = Buffer(tx_backend);
+    read_callback_t read_callback =
+        [&](const sys::error_code &ec, ParseResult &&r) {
+            if (ec) {
+                BREDIS_LOG_DEBUG("error: " << error_code.message());
+                REQUIRE(!ec);
+            }
+            REQUIRE(!ec);
+            auto &replies =
+                boost::get<r::markers::array_holder_t<Iterator>>(r.result);
+            BREDIS_LOG_DEBUG("callback, size: " << replies.elements.size());
+            REQUIRE(replies.elements.size() == count);
+            completion_promise.set_value();
+            rx_buff.consume(r.consumed);
+        };
 
-    write_callback_t write_callback = [&](const sys::error_code &error_code,
-                                          std::size_t bytes_transferred) {
+    write_callback_t write_callback = [&](
+        const sys::error_code &ec, std::size_t bytes_transferred) {
         (void)bytes_transferred;
         BREDIS_LOG_DEBUG("write_callback");
-        if (error_code) {
+        if (ec) {
             BREDIS_LOG_DEBUG("error: " << error_code.message());
-            REQUIRE(!error_code);
+            REQUIRE(!ec);
         }
-        REQUIRE(!error_code);
+        REQUIRE(!ec);
         tx_buff.consume(bytes_transferred);
     };
 

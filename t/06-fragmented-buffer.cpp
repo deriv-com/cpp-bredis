@@ -6,13 +6,14 @@
 #include "bredis/MarkerHelpers.hpp"
 #include "bredis/Protocol.hpp"
 
-#include "catch.hpp"
+#define CATCH_CONFIG_MAIN
+#include <catch2/catch_all.hpp>
 
 namespace r = bredis;
 namespace asio = boost::asio;
 
 TEST_CASE("right consumption", "[protocol]") {
-    using Buffer = std::vector<asio::const_buffers_1>;
+    using Buffer = std::vector<asio::const_buffer>;
     using Iterator = boost::asio::buffers_iterator<Buffer, char>;
     using Policy = r::parsing_policy::keep_result;
     using positive_result_t = r::parse_result_mapper_t<Iterator, Policy>;
@@ -21,8 +22,8 @@ TEST_CASE("right consumption", "[protocol]") {
         "*3\r\n$7\r\nmessage\r\n$13\r\nsome-channel1\r\n$10\r\nmessage-a1\r\n";
 
     Buffer buff;
-    for (auto i = 0; i < full_message.size(); i++) {
-        asio::const_buffers_1 v(full_message.c_str() + i, 1);
+    for (size_t i = 0; i < full_message.size(); i++) {
+        asio::const_buffer v(full_message.c_str() + i, 1);
         buff.push_back(v);
     }
     auto b_from = Iterator::begin(buff), b_to = Iterator::end(buff);
