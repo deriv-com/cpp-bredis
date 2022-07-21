@@ -9,7 +9,7 @@
 #include "bredis/Connection.hpp"
 #include "bredis/Extract.hpp"
 
-#include "catch.hpp"
+#include <catch2/catch_all.hpp>
 
 namespace r = bredis;
 namespace asio = boost::asio;

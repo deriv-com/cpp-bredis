@@ -1,6 +1,6 @@
 #include "EmptyPort.hpp"
 #include "TestServer.hpp"
-#include "catch.hpp"
+#include <catch2/catch_all.hpp>
 
 #include <boost/asio.hpp>
 #include <cstdio>

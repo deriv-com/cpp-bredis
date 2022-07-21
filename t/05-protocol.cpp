@@ -4,7 +4,8 @@
 #include <boost/asio.hpp>
 #include "bredis/MarkerHelpers.hpp"
 #include "bredis/Protocol.hpp"
-#include "catch.hpp"
+#define CATCH_CONFIG_MAIN
+#include <catch2/catch_all.hpp>
 
 namespace r = bredis;
 namespace asio = boost::asio;

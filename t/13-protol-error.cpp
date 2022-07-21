@@ -5,7 +5,7 @@
 
 #include "EmptyPort.hpp"
 #include "SocketWithLogging.hpp"
-#include "catch.hpp"
+#include <catch2/catch_all.hpp>
 
 #include "bredis/Connection.hpp"
 

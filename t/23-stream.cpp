@@ -3,7 +3,7 @@
 
 #include "EmptyPort.hpp"
 #include "TestServer.hpp"
-#include "catch.hpp"
+#include <catch2/catch_all.hpp>
 
 #include "bredis/Connection.hpp"
 #include "bredis/MarkerHelpers.hpp"
