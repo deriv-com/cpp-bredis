@@ -1,6 +1,7 @@
 //
 //
-// Copyright (c) 2017 Ivan Baidakou (basiliscos) (the dot dmol at gmail dot com)
+// Copyright (c) 2017, 2019 Ivan Baidakou (basiliscos) (the dot dmol at gmail
+// dot com)
 //
 // Distributed under the MIT Software License
 //
@@ -18,7 +19,6 @@
 
 #include <boost/asio.hpp>
 #include <boost/asio/async_result.hpp>
-#include <boost/asio/handler_type.hpp>
 #include <boost/utility/string_ref.hpp>
 
 #include "Command.hpp"
@@ -27,9 +27,8 @@
 
 namespace bredis {
 
-#define BREDIS_PARSE_RESULT(B)                                                 \
-    positive_parse_result_t<typename to_iterator<B>::iterator_t,               \
-                            bredis::parsing_policy::keep_result>
+#define BREDIS_PARSE_RESULT(B, P)                                              \
+    positive_parse_result_t<typename to_iterator<B>::iterator_t, P>
 
 template <typename NextLayer> class Connection {
 
@@ -45,29 +44,31 @@ template <typename NextLayer> class Connection {
     inline const NextLayer &next_layer() const { return stream_; }
 
     /* asynchronous interface */
-    template <typename DynamicBuffer, typename WriteCallback>
-    BOOST_ASIO_INITFN_RESULT_TYPE(WriteCallback,
+    template <typename DynamicBuffer, typename CompletionToken>
+    BOOST_ASIO_INITFN_RESULT_TYPE(CompletionToken,
                                   void(boost::system::error_code, std::size_t))
     async_write(DynamicBuffer &tx_buff, const command_wrapper_t &command,
-                WriteCallback &&write_callback);
+                CompletionToken &&completion_token);
 
-    template <typename DynamicBuffer, typename ReadCallback>
-    BOOST_ASIO_INITFN_RESULT_TYPE(ReadCallback,
+    template <typename DynamicBuffer, typename CompletionToken,
+              typename Policy = bredis::parsing_policy::keep_result>
+    BOOST_ASIO_INITFN_RESULT_TYPE(CompletionToken,
                                   void(boost::system::error_code,
-                                       BREDIS_PARSE_RESULT(DynamicBuffer)))
-    async_read(DynamicBuffer &rx_buff, ReadCallback &&read_callback,
-               std::size_t replies_count = 1);
+                                       BREDIS_PARSE_RESULT(DynamicBuffer,
+                                                           Policy)))
+    async_read(DynamicBuffer &rx_buff, CompletionToken &&completion_token,
+               std::size_t replies_count = 1, Policy policy = Policy{});
 
     /* synchronous interface */
     void write(const command_wrapper_t &command);
     void write(const command_wrapper_t &command, boost::system::error_code &ec);
 
     template <typename DynamicBuffer>
-    BREDIS_PARSE_RESULT(DynamicBuffer)
+    BREDIS_PARSE_RESULT(DynamicBuffer, bredis::parsing_policy::keep_result)
     read(DynamicBuffer &rx_buff);
 
     template <typename DynamicBuffer>
-    BREDIS_PARSE_RESULT(DynamicBuffer)
+    BREDIS_PARSE_RESULT(DynamicBuffer, bredis::parsing_policy::keep_result)
     read(DynamicBuffer &rx_buff, boost::system::error_code &ec);
 };
 

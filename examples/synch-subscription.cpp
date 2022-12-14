@@ -57,7 +57,7 @@ using optional_string_t =
     boost::optional<std::pair<string_wrapper_t, string_wrapper_t>>;
 
 struct payload_extractor : public boost::static_visitor<optional_string_t> {
-    template <typename T> optional_string_t operator()(const T &value) const {
+    template <typename T> optional_string_t operator()(const T & /* value */) const {
         return optional_string_t{};
     }
 
@@ -111,8 +111,8 @@ int main(int argc, char **argv) {
 
     try {
         // connect to redis
-        asio::io_service io_service;
-        auto ip_address = asio::ip::address::from_string(dst_parts[0]);
+        asio::io_context io_service;
+        auto ip_address = asio::ip::make_address(dst_parts[0]);
         auto port = boost::lexical_cast<std::uint16_t>(dst_parts[1]);
         std::cout << "connecting to " << address << "\n";
         asio::ip::tcp::endpoint end_point(ip_address, port);

@@ -14,6 +14,7 @@ namespace r = bredis;
 namespace asio = boost::asio;
 namespace ep = empty_port;
 namespace ts = test_server;
+namespace sys = boost::system;
 
 TEST_CASE("transaction", "[connection]") {
     using socket_t = asio::ip::tcp::socket;
@@ -39,11 +40,13 @@ TEST_CASE("transaction", "[connection]") {
     auto port_str = boost::lexical_cast<std::string>(port);
     auto server = ts::make_server({"redis-server", "--port", port_str});
     ep::wait_port<ep::Kind::TCP>(port);
-    asio::io_service io_service;
+    asio::io_context io_service;
 
     r::command_container_t tx_commands = {
-        r::single_command_t("MULTI"), r::single_command_t("INCR", "foo"),
-        r::single_command_t("INCR", "bar"), r::single_command_t("EXEC"),
+        r::single_command_t("MULTI"),
+        r::single_command_t("INCR", "foo"),
+        r::single_command_t("INCR", "bar"),
+        r::single_command_t("EXEC"),
     };
     r::command_wrapper_t cmd(tx_commands);
 
@@ -51,15 +54,15 @@ TEST_CASE("transaction", "[connection]") {
     std::future<result_t> completion_future = completion_promise.get_future();
 
     asio::ip::tcp::endpoint end_point(
-        asio::ip::address::from_string("127.0.0.1"), port);
+        asio::ip::make_address("127.0.0.1"), port);
     socket_t socket(io_service, end_point.protocol());
     socket.connect(end_point);
     r::Connection<next_layer_t> c(std::move(socket));
 
     Buffer rx_buff, tx_buff;
-    read_callback_t read_callback = [&](
-        const boost::system::error_code &error_code, ParseResult &&r) {
-        REQUIRE(!error_code);
+    read_callback_t read_callback = [&](const sys::error_code &ec,
+                                        ParseResult &&r) {
+        REQUIRE(!ec);
 
         auto &replies =
             boost::get<r::markers::array_holder_t<Iterator>>(r.result);
@@ -85,14 +88,15 @@ TEST_CASE("transaction", "[connection]") {
     };
 
     c.async_read(rx_buff, read_callback, tx_commands.size());
-    c.async_write(tx_buff, cmd,
-                  [&](const auto &error_code, auto bytes_transferred) {
-                      tx_buff.consume(bytes_transferred);
-                      REQUIRE(!error_code);
-                  });
+    c.async_write(
+        tx_buff, cmd,
+        [&](const sys::error_code &ec, std::size_t bytes_transferred) {
+            tx_buff.consume(bytes_transferred);
+            REQUIRE(!ec);
+        });
 
     while (completion_future.wait_for(sleep_delay) !=
            std::future_status::ready) {
         io_service.run_one();
     }
-};
+}
